@@ -24,10 +24,10 @@ args = vars(parser.parse_args())
 
 method = args['method_name']
 
-thres_list = [5, 10, 15, 20, 25, 30, 35]
+thres_list = [1, 5, 10, 15, 20, 25, 30, 35, 40]
 N_boost = 100
 hist_bins = np.linspace(0, 1, 14)
-prefix = result_dir+'{}_reliability_thres{}_lead{}_{}.npy'
+
 
 with h5py.File(save_dir+'CCPA_domain.hdf', 'r') as h5io:
     lon_CCPA = h5io['lon_CCPA'][...]
@@ -45,15 +45,19 @@ with h5py.File(camp_dir+'CCPA/CCPA_lead_y2021.hdf', 'r') as h5io:
     CCPA_true = h5io['CCPA_lead'][...]
 
 if method == 'ViT':
-    filename = result_dir+'VIT_FULL_GEFS_2021_STEP100_EN031_20240420_ATT0.zarr'
+    filename = camp_dir+'LDM_results/VIT_FULL_GEFS_2021_STEP100_EN031_20240420_ATT0.zarr'
     PRED = zarr.open(filename, 'r')
     PRED = np.array(PRED)
-
+    
+    prefix = result_dir+'{}_reliability_thres{}_lead{}_{}.npy'
+    
 elif method == 'LDM':
-    filename = result_dir+'LDM_FULL_GEFS_2021_STEP100_EN062_20240420_ATT0.hdf'
+    filename = camp_dir+'LDM_results/LDM_FULL_GEFS_2021_STEP100_EN062_20240420_ATT0.hdf'
     with h5py.File(filename, 'r') as h5io:
         PRED = h5io['LDM_FULL'][...]
         
+    prefix = result_dir+'{}_reliability_thres{}_lead{}_{}_new.npy'
+    
 elif method == 'AnEn':
     EN = 31
     AnEn_name = camp_dir+'AnEn_baseline/AnEn_ECC_2021_lead{:02d}_.hdf'
@@ -64,12 +68,16 @@ elif method == 'AnEn':
         AnEn[:, ilead, ...] = temp
     PRED = AnEn
     
+    prefix = result_dir+'{}_reliability_thres{}_lead{}_{}.npy'
+    
 elif method == 'RAW':
     filename = camp_dir+'GFS/GEFS_OPT_MEMBERS_2021.hdf'
     with h5py.File(filename, 'r') as h5io:
         apcp = h5io['apcp'][...]
     PRED = apcp
-
+    
+    prefix = result_dir+'{}_reliability_thres{}_lead{}_{}.npy'
+    
 else:
     print('Unknown data')
     raise

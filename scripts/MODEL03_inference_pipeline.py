@@ -47,7 +47,7 @@ iday1 = int(args['iday1'])
 
 mu.set_seeds(888)
 
-N_gen = 5 # generate # samples per GEFS ensemble member
+N_gen = 2 # generate # samples per GEFS ensemble member
 
 # ------------------------------------------------------- #
 # VQ-VAE
@@ -312,7 +312,7 @@ tuple_save = (to_precip(OUT_refine), to_precip(OUT_no_LDM_refine))
 label_save = ['OUT_refine', 
               'OUT_no_LDM_refine']
 
-du.save_hdf5(tuple_save, label_save, result_dir, 
-             'LDM_GEFS_2021_{:03d}_{:03d}_STEP{:03d}_EN{:03d}_20240424_ATT0.hdf'.format(
+du.save_hdf5(tuple_save, label_save, camp_dir, 
+             'LDM_results/LDM_GEFS_2021_{:03d}_{:03d}_STEP{:03d}_EN{:03d}_20240424_ATT0.hdf'.format(
                  iday0, iday1, diffusion_steps, EN_LDM))
 
