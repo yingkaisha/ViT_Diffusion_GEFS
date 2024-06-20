@@ -9,17 +9,28 @@ from tensorflow.keras import layers
 # ================================================================= #
 # Helper functions
 def dummy_loader(model_path):
+    '''
+    Load weights from keras v2 model file.
+    '''
     backbone = keras.models.load_model(model_path, compile=False)
     W = backbone.get_weights()
     return W
 
 def set_seeds(seed):
+    '''
+    Numpy and Tensorflow random seed
+    '''
     os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
     tf.random.set_seed(seed)
     np.random.seed(seed)
 
 def padding_3d(size_before, size_after):
+    '''
+    (x) Not used
+    Given before and after tensor sizes, it returns the size that needs to be padded.
+    Proposed for np.pad().
+    '''
     pad_dim0_left = (size_after[0] - size_before[0]) // 2
     pad_dim1_left = (size_after[1] - size_before[1]) // 2
     pad_dim2_left = (size_after[2] - size_before[2]) // 2
@@ -33,10 +44,15 @@ def padding_3d(size_before, size_after):
             (pad_dim2_left, pad_dim2_right))
 
 def cosine_schedule(num_timesteps, l_min, l_max):
+    '''
+    The function that updates learning rates based on cosine annealing schedule.
+    '''
     return l_min + 0.5*(l_max - l_min)*(1+np.cos(np.arange(num_timesteps)/num_timesteps*np.pi))
 
 def encode_mapping(data, encoder, latent_size):
-    
+    '''
+    Run encoder within for loops to convert gridded forecasts into encoded information.
+    '''
     data_shape = data.shape
     
     if len(data_shape) == 4:
@@ -58,6 +74,9 @@ def encode_mapping(data, encoder, latent_size):
 # VQ-VAE section
 
 class VectorQuantizer(layers.Layer):
+    '''
+    VQ-layer with commitment loss and codebook loss.
+    '''
     def __init__(self, num_embeddings, embedding_dim, beta=0.25, **kwargs):
         super().__init__(**kwargs)
         self.embedding_dim = embedding_dim
@@ -86,10 +105,7 @@ class VectorQuantizer(layers.Layer):
         # Reshape the quantized values back to the original input shape
         quantized = tf.reshape(quantized, input_shape)
 
-        # Calculate vector quantization loss and add that to the layer. You can learn more
-        # about adding losses to different layers here:
-        # https://keras.io/guides/making_new_layers_and_models_via_subclassing/. Check
-        # the original paper to get a handle on the formulation of the loss function.
+        # Loss computations
         commitment_loss = tf.reduce_mean((tf.stop_gradient(quantized) - x) ** 2)
         codebook_loss = tf.reduce_mean((quantized - tf.stop_gradient(x)) ** 2)
         self.add_loss(self.beta * commitment_loss + codebook_loss)
@@ -110,6 +126,9 @@ class VectorQuantizer(layers.Layer):
         return encoding_indices
 
 class VQVAETrainer(keras.models.Model):
+    '''
+    VQ-VAE warpper on Keras v2 model.
+    '''
     def __init__(self, model, train_variance, latent_dim=32, num_embeddings=128, **kwargs):
         super().__init__(**kwargs)
         self.train_variance = train_variance
@@ -119,7 +138,11 @@ class VQVAETrainer(keras.models.Model):
         self.vqvae = model
 
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
+        
+        # reconstruction loss
         self.reconstruction_loss_tracker = keras.metrics.Mean(name="reconstruction_loss")
+        
+        # commitment loss and codebook loss from the VQ-layer
         self.vq_loss_tracker = keras.metrics.Mean(name="vq_loss")
 
     @property
@@ -152,6 +175,10 @@ class VQVAETrainer(keras.models.Model):
                 "vqvae_loss": self.vq_loss_tracker.result(),}
 
 def resblock_vqvae(X, kernel_size, filter_num, activation):
+    '''
+    Residual block designs for VQ-VAE.
+    Conv --> BN --> GELU --> Conv --> (skip) --> BN --> GELU
+    '''
     Fx = layers.Conv2D(filter_num, kernel_size, padding='same')(X)
     Fx = layers.BatchNormalization()(Fx)
     Fx = layers.Activation(activation)(Fx)
@@ -162,7 +189,9 @@ def resblock_vqvae(X, kernel_size, filter_num, activation):
     return out
 
 def VQ_VAE_encoder(input_size, filter_nums, latent_dim, num_embeddings, activation, drop_encode, stride=4, stack=1):
-
+    '''
+    VQ-VAE encoder
+    '''
     # Input layer
     encoder_in = keras.Input(shape=input_size)
     X = encoder_in
@@ -218,7 +247,9 @@ def VQ_VAE_encoder(input_size, filter_nums, latent_dim, num_embeddings, activati
     return model_encoder
 
 def VQ_VAE_decoder(latent_size, filter_nums, activation, drop_decode, stride=4, stack=1):
-
+    '''
+    VQ-VAE decoder
+    '''
     # Input layer
     decoder_in = keras.Input(shape=latent_size)
     X = decoder_in
@@ -296,6 +327,9 @@ def VQ_VAE_refine_blocks(input_size, filter_nums):
 # 3d bias-correction ViT section
 
 class TubeletEmbedding(layers.Layer):
+    '''
+    Cube Embedding using Conv3D.
+    '''
     def __init__(self, embed_dim, patch_size, **kwargs):
         super().__init__(**kwargs)
         self.projection = layers.Conv3D(filters=embed_dim, kernel_size=patch_size, 
@@ -308,6 +342,9 @@ class TubeletEmbedding(layers.Layer):
         return flattened_patches
 
 class PositionalEncoder(layers.Layer):
+    '''
+    Positional Embeddings on flattened patches using keras.layers.Embedding()
+    '''
     def __init__(self, embed_dim, **kwargs):
         super().__init__(**kwargs)
         self.embed_dim = embed_dim
@@ -324,7 +361,9 @@ class PositionalEncoder(layers.Layer):
         return encoded_tokens
         
 def ViT3d_corrector(input_size, output_size, patch_size, project_dim, N_layers, N_heads):
-    
+    '''
+    3-D ViT for bias correction.
+    '''
     # Compute the number of patches on each dimension
     N_patches = (input_size[0] // patch_size[0], input_size[1] // patch_size[1], input_size[2] // patch_size[2])
 
@@ -390,6 +429,9 @@ def ViT3d_corrector(input_size, output_size, patch_size, project_dim, N_layers, 
 # 3D diffusion model
 
 def sinusoidal_embedding(x, embedding_dims):
+    '''
+    Embed diffusion step information using sine and cosine functions.
+    '''
     # no more than 1000 diffusion steps
     embedding_min_frequency = 1.0
     embedding_max_frequency = 1000.0
@@ -405,6 +447,10 @@ def sinusoidal_embedding(x, embedding_dims):
 
 
 def ResidualBlock(width, activation="swish"):
+    '''
+    The Residual block design of 3-D diffusion model.
+    Ref. to Res-Unet.
+    '''
     def apply(x):
         # match input shapes
         input_width = x.shape[-1]
@@ -445,6 +491,9 @@ def UpBlock(width, block_depth):
 
 
 def get_network(input_size, input_condition_size, output_size, embedding_dims, widths, block_depth):
+    '''
+    3-D diffusion model builder.
+    '''
     # noise input
     noisy_images = keras.Input(shape=input_size)
     # conditional input
@@ -480,6 +529,9 @@ def get_network(input_size, input_condition_size, output_size, embedding_dims, w
     return keras.Model([noisy_images, conditions, noise_variances], x, name="residual_unet")
 
 class DiffusionModel(keras.Model):
+    '''
+    Diffusion model
+    '''
     def __init__(self, input_size, input_condition_size, output_size, 
                  diffusion_steps, min_signal_rate, max_signal_rate, 
                  embedding_dims, widths, block_depth, ema):
@@ -535,9 +587,10 @@ class DiffusionModel(keras.Model):
             # EMA weights for validation
             network = self.ema_network
 
-        # predict nois
+        # predict noise
         pred_noises = network([noisy_images, conditions, noise_rates**2], training=training)
-        # pred image
+        
+        # subtrack noise from the input image
         pred_images = (noisy_images - noise_rates * pred_noises) / signal_rates
 
         return pred_noises, pred_images
@@ -556,17 +609,21 @@ class DiffusionModel(keras.Model):
 
             # separate the current noisy image to its components
             diffusion_times = tf.ones((num_images, 1, 1, 1, 1)) - step * step_size
+            
             # pull the current diffusion schedule
             noise_rates, signal_rates = self.diffusion_schedule(diffusion_times)
+            
             # single reverse diffusion step
             pred_noises, pred_images = self.denoise(noisy_images, conditions, 
                                                     noise_rates, signal_rates, training=False)
+            
             # remix the predicted components using the next signal and noise rates
             next_diffusion_times = diffusion_times - step_size
             next_noise_rates, next_signal_rates = self.diffusion_schedule(next_diffusion_times)
-            next_noisy_images = (next_signal_rates * pred_images + next_noise_rates * pred_noises)
-            # this new noisy image will be used in the next step
 
+            # produce reverse diffusion output for the current step
+            next_noisy_images = (next_signal_rates * pred_images + next_noise_rates * pred_noises)
+            
         return pred_images
 
     def generate(self, num_images, conditions):
@@ -645,8 +702,4 @@ class DiffusionModel(keras.Model):
         self.image_loss_tracker.update_state(image_loss)
         self.noise_loss_tracker.update_state(noise_loss)
         
-        # debug generated images
-        # generated_images = self.generate(
-        #     num_images=images.shape[0])
-
         return {m.name: m.result() for m in self.metrics}
