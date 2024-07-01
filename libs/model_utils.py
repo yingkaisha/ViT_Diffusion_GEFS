@@ -92,7 +92,7 @@ class VectorQuantizer(layers.Layer):
             trainable=True, name="embeddings_vqvae",)
 
     def call(self, x):
-        # Calculate the input shape of the inputs and
+        # Calculate the shape of the inputs and
         # then flatten the inputs keeping `embedding_dim` intact.
         input_shape = tf.shape(x)
         flattened = tf.reshape(x, [-1, self.embedding_dim])
