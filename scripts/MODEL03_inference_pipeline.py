@@ -242,6 +242,13 @@ for ien in range(EN):
         
 LDM_output = scaleback(LDM_output) # scale-back latents
 
+# ===================================================== #
+# Latent mixing (ratio has RNG in it, so it works on flexible ensemble sizes, but larger ensemble is preferred)
+for ien in range(EN):
+    ratio = np.random.uniform(low=0.65, high=0.95)
+    LDM_output[:, :, N_gen*ien:N_gen*(ien+1), ...] = (1-ratio)*LDM_output[:, :, N_gen*ien:N_gen*(ien+1), ...] + \
+                                                     ratio*GEFS_encode[:, :, ien, ...][:, :, None, ...]
+
 # ------------------------------------------------------- #
 # STEP 4
 OUT_VAE = np.empty((N_days, N_leads, EN_LDM)+ccpa_shape)
